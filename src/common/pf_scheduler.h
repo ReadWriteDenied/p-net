@@ -154,8 +154,9 @@ void pf_scheduler_remove (pnet_t * net, pf_scheduler_handle_t * handle);
  * Check if it is time to call a scheduled call-back.
  * Run scheduled call-backs - if any.
  * @param net              InOut: The p-net stack instance
+ * @return next timeout in us (0 if none)
  */
-void pf_scheduler_tick (pnet_t * net);
+uint32_t pf_scheduler_tick (pnet_t * net);
 
 /**
  * Show scheduler (busy and free) instances.

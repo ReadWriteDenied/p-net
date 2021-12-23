@@ -117,6 +117,12 @@ pnet_t * pnet_init (const pnet_cfg_t * p_cfg)
    return net;
 }
 
+uint pnet_handle_scheduler (pnet_t * net)
+{
+  /* Handle expired timeout events */
+  return pf_scheduler_tick (net);
+}
+
 void pnet_handle_periodic (pnet_t * net)
 {
 #if LOG_DEBUG_ENABLED(PNET_LOG)

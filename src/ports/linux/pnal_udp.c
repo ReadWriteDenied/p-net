@@ -17,18 +17,106 @@
 #include "pf_includes.h"
 
 #include <string.h>
+#include <sys/select.h>
+#include <sys/eventfd.h>
 #include <unistd.h>
 
-int pnal_udp_open (pnal_ipaddr_t addr, pnal_ipport_t port)
+typedef struct pnal_udp_handle
+{
+   pnal_udp_callback_t * callback;
+   void * arg;
+   int socket;
+} pnal_udp_handle_t;
+
+#define MAX_HANDLES 10
+static pnal_udp_handle_t handles[MAX_HANDLES];
+static os_thread_t * thread = NULL;
+static int event_fd = -1;
+static bool is_initialized = false;
+
+static pnal_udp_handle_t * get_handle(int id)
+{
+  for (size_t i = 0; i < MAX_HANDLES; ++i) {
+    if (handles[i].socket == id) {
+      return &handles[i];
+    }
+  }
+  return NULL;
+}
+
+static void os_udp_task (void * thread_arg)
+{
+   while (1) {
+      fd_set rfds;
+      FD_ZERO(&rfds);
+      size_t nfds = 1;
+      FD_SET(event_fd, &rfds);
+      for (size_t i = 0; i < MAX_HANDLES; ++i) {
+         int fd = handles[i].socket;
+         if (fd < 0) {
+           continue;
+         }
+         FD_SET(fd, &rfds);
+         ++nfds;
+       }
+
+       while (select(nfds, &rfds, NULL, NULL, NULL))
+       {
+           for (size_t i = 0; i < MAX_HANDLES; ++i) {
+              pnal_udp_handle_t * handle = &handles[i];
+              int fd = handle->socket;
+              if (fd < 0) {
+                 continue;
+              }
+              if (FD_ISSET(fd, &rfds) && handle->callback) {
+                 handle->callback(fd, handle->arg);
+              }
+           }
+       }
+   }
+}
+
+static void initialize(const pnal_cfg_t * pnal_cfg)
+{
+   for (size_t i = 0; i < MAX_HANDLES; ++i) {
+      handles[i].socket = -1;
+   }
+   event_fd = eventfd(0, EFD_NONBLOCK);
+   thread = os_thread_create (
+       "os_udp_task",
+       pnal_cfg->udp_recv_thread.prio,
+       pnal_cfg->udp_recv_thread.stack_size,
+       os_udp_task,
+       NULL);
+   is_initialized = true;
+}
+
+int pnal_udp_open (
+   pnal_ipaddr_t addr,
+   pnal_ipport_t port,
+   const pnal_cfg_t * pnal_cfg,
+   pnal_udp_callback_t * callback,
+   void * arg)
 {
    struct sockaddr_in local;
    int id;
    const int enable = 1;
 
+   if (!is_initialized) {
+      initialize(pnal_cfg);
+   }
+
+   // Try to get a free handle
+   pnal_udp_handle_t * handle = get_handle(-1);
+   if (handle == NULL)
+   {
+      return -1;
+   }
+
    id = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP);
    if (id == -1)
    {
-      return -1;
+      goto error;
    }
 
    if (setsockopt(id, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) != 0)
@@ -49,10 +137,20 @@ int pnal_udp_open (pnal_ipaddr_t addr, pnal_ipport_t port)
       goto error;
    }
 
+   handle->arg = arg;
+   handle->callback = callback;
+   handle->socket = id;
+
+   // Update monitored fd's
+   uint64_t u = 1;
+   write(event_fd, &u, sizeof(u));
+
    return id;
 
 error:
-   close (id);
+   if (id > -1)
+      close (id);
+   handle->socket = -1;
    return -1;
 }
 
@@ -108,5 +206,9 @@ int pnal_udp_recvfrom (
 
 void pnal_udp_close (uint32_t id)
 {
-   close (id);
+   pnal_udp_handle_t * handle = get_handle(id);
+   if (handle) {
+      close (id);
+      handle->socket = -1;
+   }
 }

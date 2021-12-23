@@ -28,9 +28,13 @@
 #include <string.h>
 #include "pf_includes.h"
 
-int pf_udp_open (pnet_t * net, pnal_ipport_t port)
+int pf_udp_open (
+   pnet_t * net,
+   pnal_ipport_t port,
+   pnal_udp_callback_t * callback,
+   void * arg)
 {
-   return pnal_udp_open (PNAL_IPADDR_ANY, port);
+   return pnal_udp_open (PNAL_IPADDR_ANY, port, &net->fspm_cfg.pnal_cfg, callback, arg);
 }
 
 int pf_udp_sendto (

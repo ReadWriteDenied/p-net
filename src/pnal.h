@@ -353,6 +353,16 @@ pnal_eth_handle_t * pnal_eth_init (
    void * arg);
 
 /**
+ * The prototype of UDP rcv pending call-back functions.
+ *
+ * @param id               In:    Socket ID
+ * @param arg              InOut: User-defined (may be NULL).
+ */
+typedef void (pnal_udp_callback_t) (
+   int id,
+   void * arg);
+
+/**
  * Open an UDP socket
  *
  * @param addr             In:    IP address to listen to. Typically used with
@@ -360,7 +370,12 @@ pnal_eth_handle_t * pnal_eth_init (
  * @param port             In:    UDP port to listen to.
  * @return Socket ID, or -1 if an error occurred.
  */
-int pnal_udp_open (pnal_ipaddr_t addr, pnal_ipport_t port);
+int pnal_udp_open (
+   pnal_ipaddr_t addr,
+   pnal_ipport_t port,
+   const pnal_cfg_t * pnal_cfg,
+   pnal_udp_callback_t * callback,
+   void * arg);
 
 /**
  * Send UDP data

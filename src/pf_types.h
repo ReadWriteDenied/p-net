@@ -2614,6 +2614,8 @@ struct pnet
    volatile uint32_t scheduler_timeout_free;
    os_mutex_t * scheduler_timeout_mutex;
    uint32_t scheduler_tick_interval; /* microseconds */
+   uint32_t scheduler_previous_time;
+   bool scheduler_tick_busy;
    bool cmdev_initialized;
    pf_device_t cmdev_device;                     /* APIs and diag items */
    pf_cmina_dcp_ase_t cmina_nonvolatile_dcp_ase; /* Reflects what is/should be
@@ -2658,6 +2660,9 @@ struct pnet
     */
    os_mutex_t * lldp_mutex;
 
+   pf_scheduler_handle_t alarm_dequeue_timeout;
+   pf_scheduler_handle_t cmrpc_packet_timeout;
+
    /* Interface data
     *
     * Interface and ports runtime data.
@@ -2680,6 +2685,8 @@ struct pnet
 
       /* Scheduler handle for Ethernet link monitoring */
       pf_scheduler_handle_t link_monitor_timeout;
+
+      pf_scheduler_handle_t lldp_peer_check_timeout;
    } pf_interface;
 
    struct

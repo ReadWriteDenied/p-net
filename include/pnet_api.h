@@ -995,6 +995,10 @@ typedef int (*pnet_reset_ind) (
  */
 typedef int (*pnet_signal_led_ind) (pnet_t * net, void * arg, bool led_state);
 
+
+typedef int (*pnet_scheduler_next_ind) (pnet_t * net, void * arg, uint32_t ticks_us);
+
+
 /*
  * Network and device configuration.
  *
@@ -1225,6 +1229,7 @@ typedef struct pnet_cfg
    pnet_alarm_ack_cnf alarm_ack_cnf_cb;
    pnet_reset_ind reset_cb;
    pnet_signal_led_ind signal_led_cb;
+   pnet_scheduler_next_ind schedule_next_cb; /* reschedule next call to pnet_handle_scheduler, alternative to pnet_handle_periodic */
    void * cb_arg; /* Userdata passed to callbacks, not used by stack */
 
    /** I&M initial data */
@@ -1306,6 +1311,10 @@ PNET_EXPORT pnet_t * pnet_init (const pnet_cfg_t * p_cfg);
  * @param net              InOut: The p-net stack instance
  */
 PNET_EXPORT void pnet_handle_periodic (pnet_t * net);
+
+// ALTERNATIVE TO PERIODIC HANDLER
+// Call on timeout (possibly rescheduled through callback schedule_next_cb)
+PNET_EXPORT uint32_t pnet_handle_scheduler (pnet_t * net);
 
 /**
  * Application signals ready to exchange data.

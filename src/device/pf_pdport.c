@@ -356,6 +356,8 @@ int pf_pdport_init (pnet_t * net)
    int port;
    pf_port_iterator_t port_iterator;
 
+   pf_scheduler_init_handle(&net->pf_interface.lldp_peer_check_timeout, "pdport_lldp_peer_check");
+
    pf_port_init_iterator_over_ports (net, &port_iterator);
    port = pf_port_get_next (&port_iterator);
    while (port != 0)
@@ -1431,10 +1433,32 @@ int pf_pdport_write_req (
    return ret;
 }
 
+static void pf_pdport_trigger_peer_check (
+   pnet_t * net,
+   void * arg,
+   uint32_t current_time)
+{
+  pf_pdport_periodic(net);
+}
+
+static void pf_pdport_schedule_peer_check (pnet_t * net)
+{
+   pf_scheduler_handle_t *handle = &net->pf_interface.lldp_peer_check_timeout;
+   if (!pf_scheduler_is_running(handle)) {
+     pf_scheduler_add (
+           net,
+           10000, // TODO: base this on the tick size ?
+           pf_pdport_trigger_peer_check,
+           NULL,
+           handle);
+   }
+}
+
 void pf_pdport_peer_indication (pnet_t * net, int loc_port_num)
 {
    pf_port_t * p_port_data = pf_port_get_state (net, loc_port_num);
    p_port_data->pdport.lldp_peer_info_updated = true;
+   pf_pdport_schedule_peer_check(net);
 }
 
 void pf_pdport_update_eth_status (pnet_t * net)

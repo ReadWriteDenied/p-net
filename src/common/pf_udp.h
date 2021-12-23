@@ -25,10 +25,16 @@ extern "C" {
  *
  * @param net              InOut: The p-net stack instance
  * @param port             In:    UDP port to listen to.
+ * @param callback         In:    Optional callback, fires when a packet is available
+ * @param arg              In:    User data
  * @return Socket ID, or -1 if an error occurred. Note that socket ID 0
  *         is valid.
  */
-int pf_udp_open (pnet_t * net, pnal_ipport_t port);
+int pf_udp_open (
+   pnet_t * net,
+   pnal_ipport_t port,
+   pnal_udp_callback_t * callback,
+   void * arg);
 
 /**
  * Send UDP data

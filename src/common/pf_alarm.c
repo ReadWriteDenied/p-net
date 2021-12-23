@@ -311,6 +311,7 @@ void pf_alarm_init (pnet_t * net)
 {
    /* Enable alarms from the start */
    net->global_alarm_enable = true;
+   pf_scheduler_init_handle(&net->alarm_dequeue_timeout, "alarm_dequeue");
 }
 
 /**
@@ -681,6 +682,28 @@ static int pf_alarm_alpmr_apmr_a_data_ind (
    return ret;
 }
 
+static void pf_alarm_trigger_dequeue (
+   pnet_t * net,
+   void * arg,
+   uint32_t current_time)
+{
+  pf_alarm_periodic(net);
+}
+
+
+static void pf_alarm_schedule_dequeue(pnet_t * net)
+{
+   pf_scheduler_handle_t *handle = &net->alarm_dequeue_timeout;
+   if (!pf_scheduler_is_running(handle)) {
+     pf_scheduler_add (
+           net,
+           10000, // TODO: base this on the tick size ?
+           pf_alarm_trigger_dequeue,
+           NULL,
+           handle);
+   }
+}
+
 /*********************** Frame handler callback ******************************/
 
 /**
@@ -730,6 +753,8 @@ static int pf_alarm_apmr_frame_handler (
             __LINE__,
             p_apmx->high_priority ? "high" : "low",
             p_buf);
+
+         pf_alarm_schedule_dequeue(net);
 
          ret = 1; /* Means that calling function should not free buffer,
                      as that will be done when reading the queue */
@@ -3101,9 +3126,13 @@ static int pf_alarm_send_alarm (
       alarm_type,
       payload_len);
 
-   return pf_alarm_send_queue_post (
+   int ret = pf_alarm_send_queue_post (
       &p_ar->alarm_send_q[high_prio ? 1 : 0],
       &alarm_data);
+   if (ret == 0) {
+     pf_alarm_schedule_dequeue(net);
+   }
+   return ret;
 }
 
 /************************ Send specific alarm types **************************/

@@ -3588,6 +3588,28 @@ static int pf_cmrpc_rpc_request (
    return ret;
 }
 
+static void pf_cmrpc_trigger_packet_handler (
+   pnet_t * net,
+   void * arg,
+   uint32_t current_time)
+{
+  pf_cmrpc_periodic(net);
+}
+
+static void pf_cmrpc_schedule_packet_handler (int id, void * arg)
+{
+   pnet_t * net = (pnet_t *)arg;
+   pf_scheduler_handle_t *handle = &net->cmrpc_packet_timeout;
+   if (!pf_scheduler_is_running(handle)) {
+     pf_scheduler_add (
+           net,
+           10000, // TODO: base this on the tick size ?
+           pf_cmrpc_trigger_packet_handler,
+           NULL,
+           handle);
+   }
+}
+
 int pf_cmrpc_rm_ccontrol_req (pnet_t * net, pf_ar_t * p_ar)
 {
    int ret = -1;
@@ -3829,7 +3851,11 @@ int pf_cmrpc_rm_ccontrol_req (pnet_t * net, pf_ar_t * p_ar)
          &start_pos);
 
       /* Open socket for CControl interchange */
-      p_sess->socket = pf_udp_open (net, PF_RPC_CCONTROL_EPHEMERAL_PORT);
+      p_sess->socket = pf_udp_open (
+        net,
+        PF_RPC_CCONTROL_EPHEMERAL_PORT,
+        pf_cmrpc_schedule_packet_handler,
+        net);
       p_sess->resend_counter = PF_CMRPC_NUMBER_OF_RESENDS;
       pf_cmrpc_send_with_timeout (net, p_sess, os_get_current_time_us());
 
@@ -4979,7 +5005,13 @@ void pf_cmrpc_init (pnet_t * net)
          net->cmrpc_session_info[ix].socket = -1;
       }
 
-      net->cmrpc_rpcreq_socket = pf_udp_open (net, PF_RPC_SERVER_PORT);
+      pf_scheduler_init_handle(&net->cmrpc_packet_timeout, "cmrpc_packet");
+
+      net->cmrpc_rpcreq_socket = pf_udp_open (
+         net,
+         PF_RPC_SERVER_PORT,
+         pf_cmrpc_schedule_packet_handler,
+         net);
    }
 
    /* Save for later (put it into each session */
